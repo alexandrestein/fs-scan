@@ -1,6 +1,8 @@
 # fs-scan
 Scan directory and sub directories to display file layout from the size standpoint
 
+[![asciicast](https://asciinema.org/a/6kVXn9wv2E97VLIB2g7Yt05Ii.svg)](https://asciinema.org/a/6kVXn9wv2E97VLIB2g7Yt05Ii)
+
 The package can optionally take a parameter which will be used as base directory.
 Otherwise the current directory is used.
 
@@ -26,6 +28,3 @@ Less than 4K -> 377K (377699)
 Between 4K and 16K -> 168K (168241)
 ...
 ```
-
-Demo:
-[![asciicast](https://asciinema.org/a/6kVXn9wv2E97VLIB2g7Yt05Ii.svg)](https://asciinema.org/a/6kVXn9wv2E97VLIB2g7Yt05Ii)
