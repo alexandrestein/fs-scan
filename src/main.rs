@@ -57,7 +57,7 @@ fn main() -> io::Result<()> {
     Ok(())
 }
 
-fn nice_number(input: u64) -> String {
+fn nice_number(input: usize) -> String {
     if input < 1_000 {
         return format!("{:?}", input);
     } else if input < 1_000_000 {
@@ -123,19 +123,19 @@ fn handle_file(len: u64, res: &mut Result) {
 }
 
 struct Result {
-    files: u64,
-    directories: u64,
-    less_than_4_k: u64,
-    between_4_k_16_k: u64,
-    between_16_k_64_k: u64,
-    between_64_k_128_k: u64,
-    between_128_k_256_k: u64,
-    between_256_k_512_k: u64,
-    between_512_k_1_m: u64,
-    between_1_m_10_m: u64,
-    between_10_m_100_m: u64,
-    between_100_m_1_g: u64,
-    more_than_1_g: u64,
+    files: usize,
+    directories: usize,
+    less_than_4_k: usize,
+    between_4_k_16_k: usize,
+    between_16_k_64_k: usize,
+    between_64_k_128_k: usize,
+    between_128_k_256_k: usize,
+    between_256_k_512_k: usize,
+    between_512_k_1_m: usize,
+    between_1_m_10_m: usize,
+    between_10_m_100_m: usize,
+    between_100_m_1_g: usize,
+    more_than_1_g: usize,
 }
 fn build_result() -> Result {
     Result {
