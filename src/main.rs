@@ -1,5 +1,12 @@
 use std::env;
+use std::sync::atomic::AtomicUsize;
+use std::sync::mpsc;
+use std::thread;
 use std::{fs, io};
+
+// use std::sync::Mutex;
+
+use num_cpus;
 
 fn main() -> io::Result<()> {
     let mut path = String::from(".");
@@ -8,10 +15,18 @@ fn main() -> io::Result<()> {
         println!("The path is {}", args[1]);
         path = String::from(&args[1]);
     };
+    let num = num_cpus::get();
+    println!("{}", num);
+
+    let (tx, rx):(mpsc::Sender<usize>, mpsc::Receiver<usize>) = mpsc::channel();
+    let mut atomic_num_of_running_tasks = AtomicUsize::new(0);
 
     let mut res = build_result();
 
-    res = handle_dir(path.as_str(), res);
+    let guard = thread::scoped(|| {
+        res = handle_dir(&atomic_num_of_running_tasks, path.as_str(), res);
+    });
+
 
     println!("Files -> {}", nice_number(res.files));
     println!("Directories -> {}", nice_number(res.directories));
@@ -67,7 +82,7 @@ fn nice_number(input: usize) -> String {
     }
 }
 
-fn handle_dir(path: &str, mut res: Result) -> Result {
+fn handle_dir_multi(mut nb: &AtomicUsize, path: &str, tx: mpsc::Sender<usize>) {
     if let Ok(entries) = fs::read_dir(path) {
         for entry in entries {
             if let Ok(entry) = entry {
@@ -76,7 +91,33 @@ fn handle_dir(path: &str, mut res: Result) -> Result {
                         res.directories = res.directories + 1;
                         match entry.path().to_str() {
                             Some(s) => {
-                                res = handle_dir(s, res);
+                                res = handle_dir(nb, s, res);
+                            }
+                            None => println!("no regular path {:?}", entry.path()),
+                        }
+                        // println!("{:?}: is dir", entry.path());
+                    }
+                    if metadata.is_file() {
+                        handle_file(metadata.len(), &mut res);
+                    }
+                } else {
+                    println!("Couldn't get file type for {:?}", entry.path());
+                }
+            }
+        }
+    }
+}
+
+fn handle_dir(mut nb: &AtomicUsize, path: &str, mut res: Result) -> Result {
+    if let Ok(entries) = fs::read_dir(path) {
+        for entry in entries {
+            if let Ok(entry) = entry {
+                if let Ok(metadata) = entry.metadata() {
+                    if metadata.is_dir() {
+                        res.directories = res.directories + 1;
+                        match entry.path().to_str() {
+                            Some(s) => {
+                                res = handle_dir(nb, s, res);
                             }
                             None => println!("no regular path {:?}", entry.path()),
                         }
@@ -95,6 +136,7 @@ fn handle_dir(path: &str, mut res: Result) -> Result {
     res
 }
 
+// fn handle_file_multi(len: u64, chan: ) {}
 fn handle_file(len: u64, res: &mut Result) {
     if len < 4_000 {
         res.less_than_4_k = res.less_than_4_k + 1;
