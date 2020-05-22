@@ -1,5 +1,5 @@
 # fs-scan
-Scan directory and sub directories to display file layout from the size standpoint
+Scan directory and sub directories to display file layout from the size standpoint.
 
 [![asciicast](https://asciinema.org/a/6kVXn9wv2E97VLIB2g7Yt05Ii.svg)](https://asciinema.org/a/6kVXn9wv2E97VLIB2g7Yt05Ii?autoplay=1)
 

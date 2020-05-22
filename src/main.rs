@@ -1,12 +1,29 @@
 use std::env;
-use std::sync::atomic::AtomicUsize;
-use std::sync::mpsc;
+use std::sync::mpsc::{channel, Sender};
 use std::thread;
 use std::{fs, io};
 
-// use std::sync::Mutex;
 
-use num_cpus;
+enum ResponseType {
+    File,
+    Dir,
+}
+struct ChanResponse {
+    t: ResponseType,
+    len: u64,
+}
+fn build_dir_chan() -> ChanResponse {
+    ChanResponse {
+        t: ResponseType::Dir,
+        len: 0,
+    }
+}
+fn build_file_chan(size: u64) -> ChanResponse {
+    ChanResponse {
+        t: ResponseType::File,
+        len: size,
+    }
+}
 
 fn main() -> io::Result<()> {
     let mut path = String::from(".");
@@ -15,19 +32,29 @@ fn main() -> io::Result<()> {
         println!("The path is {}", args[1]);
         path = String::from(&args[1]);
     };
-    let num = num_cpus::get();
-    println!("{}", num);
-
-    let (tx, rx):(mpsc::Sender<usize>, mpsc::Receiver<usize>) = mpsc::channel();
-    let mut atomic_num_of_running_tasks = AtomicUsize::new(0);
 
     let mut res = build_result();
 
-    let guard = thread::scoped(|| {
-        res = handle_dir(&atomic_num_of_running_tasks, path.as_str(), res);
+    // build channel
+    let (sender, receiver) = channel();
+
+    // Run the directory thread which will run other threads
+    thread::spawn(move || {
+        handle_dir(path, sender);
     });
-
-
+    
+    // Handle responses
+    for received in receiver {
+        match received.t {
+            ResponseType::Dir => {
+                res.directories += 1;
+            }
+            ResponseType::File => {
+                handle_file(received.len, &mut res);
+            }
+        }
+    }
+    
     println!("Files -> {}", nice_number(res.files));
     println!("Directories -> {}", nice_number(res.directories));
     println!("Less than 4K -> {}", nice_number(res.less_than_4_k));
@@ -82,61 +109,36 @@ fn nice_number(input: usize) -> String {
     }
 }
 
-fn handle_dir_multi(mut nb: &AtomicUsize, path: &str, tx: mpsc::Sender<usize>) {
+fn handle_dir(path: String, ch: Sender<ChanResponse>) {
     if let Ok(entries) = fs::read_dir(path) {
-        for entry in entries {
-            if let Ok(entry) = entry {
-                if let Ok(metadata) = entry.metadata() {
-                    if metadata.is_dir() {
-                        res.directories = res.directories + 1;
-                        match entry.path().to_str() {
-                            Some(s) => {
-                                res = handle_dir(nb, s, res);
+        let ch = ch.clone();
+        thread::spawn(move || {
+            for entry in entries {
+                if let Ok(entry) = entry {
+                    if let Ok(metadata) = entry.metadata() {
+                        if metadata.is_dir() {
+                            let ch = ch.clone();
+
+                            ch.send(build_dir_chan()).unwrap();
+
+                            match entry.path().to_str() {
+                                Some(s) => {
+                                    handle_dir(String::from(s), ch);
+                                }
+                                None => println!("no regular path {:?}", entry.path()),
                             }
-                            None => println!("no regular path {:?}", entry.path()),
+                        } else if metadata.is_file() {
+                            ch.send(build_file_chan(metadata.len())).unwrap();
                         }
-                        // println!("{:?}: is dir", entry.path());
+                    } else {
+                        println!("Couldn't get file type for {:?}", entry.path());
                     }
-                    if metadata.is_file() {
-                        handle_file(metadata.len(), &mut res);
-                    }
-                } else {
-                    println!("Couldn't get file type for {:?}", entry.path());
                 }
             }
-        }
+        });
     }
 }
 
-fn handle_dir(mut nb: &AtomicUsize, path: &str, mut res: Result) -> Result {
-    if let Ok(entries) = fs::read_dir(path) {
-        for entry in entries {
-            if let Ok(entry) = entry {
-                if let Ok(metadata) = entry.metadata() {
-                    if metadata.is_dir() {
-                        res.directories = res.directories + 1;
-                        match entry.path().to_str() {
-                            Some(s) => {
-                                res = handle_dir(nb, s, res);
-                            }
-                            None => println!("no regular path {:?}", entry.path()),
-                        }
-                        // println!("{:?}: is dir", entry.path());
-                    }
-                    if metadata.is_file() {
-                        handle_file(metadata.len(), &mut res);
-                    }
-                } else {
-                    println!("Couldn't get file type for {:?}", entry.path());
-                }
-            }
-        }
-    }
-
-    res
-}
-
-// fn handle_file_multi(len: u64, chan: ) {}
 fn handle_file(len: u64, res: &mut Result) {
     if len < 4_000 {
         res.less_than_4_k = res.less_than_4_k + 1;
