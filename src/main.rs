@@ -1,4 +1,5 @@
 use std::env;
+use std::path::PathBuf;
 use std::sync::mpsc::{channel, Sender};
 use std::thread;
 use std::{fs, io};
@@ -11,11 +12,11 @@ enum ResponseType {
 }
 struct ChanResponse {
     t: ResponseType,
-    path: String,
+    path: PathBuf,
     len: u64,
     dir_done: bool,
 }
-fn build_dir_chan(path: String) -> ChanResponse {
+fn build_dir_chan(path: PathBuf) -> ChanResponse {
     ChanResponse {
         t: ResponseType::Dir,
         path,
@@ -26,7 +27,7 @@ fn build_dir_chan(path: String) -> ChanResponse {
 fn build_dir_chan_done() -> ChanResponse {
     ChanResponse {
         t: ResponseType::Dir,
-        path: String::new(),
+        path: PathBuf::new(),
         len: 0,
         dir_done: true,
     }
@@ -34,18 +35,18 @@ fn build_dir_chan_done() -> ChanResponse {
 fn build_file_chan(size: u64) -> ChanResponse {
     ChanResponse {
         t: ResponseType::File,
-        path: String::new(),
+        path: PathBuf::new(),
         len: size,
         dir_done: false,
     }
 }
 
 fn main() -> io::Result<()> {
-    let mut path = String::from(".");
+    let mut path = PathBuf::from(".");
     let args: Vec<_> = env::args().collect();
     if args.len() > 1 {
         println!("The path is {}", args[1]);
-        path = String::from(&args[1]);
+        path = PathBuf::from(&args[1]);
     };
 
     let mut res = build_result();
@@ -146,7 +147,7 @@ fn nice_number(input: usize) -> String {
     }
 }
 
-fn handle_dir(path: String, ch: Sender<ChanResponse>) {
+fn handle_dir(path: PathBuf, ch: Sender<ChanResponse>) {
     match fs::read_dir(&path) {
         Ok(entries) => {
             let ch = ch.clone();
@@ -157,12 +158,7 @@ fn handle_dir(path: String, ch: Sender<ChanResponse>) {
                             Ok(metadata) => {
                                 if metadata.is_dir() {
                                     let ch = ch.clone();
-                                    match entry.path().to_str() {
-                                        Some(s) => {
-                                            ch.send(build_dir_chan(String::from(s))).unwrap();
-                                        }
-                                        None => println!("no regular path {:?}", entry.path()),
-                                    }
+                                    ch.send(build_dir_chan(entry.path())).unwrap();
                                 } else if metadata.is_file() {
                                     ch.send(build_file_chan(metadata.len())).unwrap();
                                 }
@@ -185,7 +181,7 @@ fn handle_dir(path: String, ch: Sender<ChanResponse>) {
             });
         }
         Err(err) => {
-            println!("warning 0 {} {}", err, &path);
+            println!("warning 0 {} {:?}", err, &path);
             // Notify the end of the thread
             ch.send(build_dir_chan_done()).unwrap();
         }
