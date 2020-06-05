@@ -1,8 +1,11 @@
 use std::env;
-use std::sync::mpsc::{channel, Sender};
+use std::sync::atomic::AtomicUsize;
+use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
+use std::time;
 use std::{fs, io};
 
+use num_cpus;
 
 enum ResponseType {
     File,
@@ -10,18 +13,38 @@ enum ResponseType {
 }
 struct ChanResponse {
     t: ResponseType,
+    path: String,
     len: u64,
+    dir_done: bool,
+    // dir_count: usize,
 }
-fn build_dir_chan() -> ChanResponse {
+fn build_dir_chan(path: String) -> ChanResponse {
+    // fn build_dir_chan(path: String, dir_count: usize) -> ChanResponse {
     ChanResponse {
         t: ResponseType::Dir,
+        path,
         len: 0,
+        // dir_count,
+        dir_done: false,
+    }
+}
+fn build_dir_chan_done() -> ChanResponse {
+    // fn build_dir_chan(path: String, dir_count: usize) -> ChanResponse {
+    ChanResponse {
+        t: ResponseType::Dir,
+        path: String::new(),
+        len: 0,
+        // dir_count,
+        dir_done: true,
     }
 }
 fn build_file_chan(size: u64) -> ChanResponse {
     ChanResponse {
         t: ResponseType::File,
+        path: String::new(),
         len: size,
+        // dir_count: 0,
+        dir_done: false,
     }
 }
 
@@ -37,24 +60,70 @@ fn main() -> io::Result<()> {
 
     // build channel
     let (sender, receiver) = channel();
-
+    // let (dir_sender, dir_receiver): (<Sender::ChanResponse>,<Receiver::ChanResponse>) = channel();
+    let (dir_sender, dir_receiver): (Sender<ChanResponse>, Receiver<ChanResponse>) = channel();
+    let saved_num_cpu = num_cpus::get();
+    // let atomic_running_thread = AtomicUsize::new(0);
     // Run the directory thread which will run other threads
+    // thread::spawn(move || {
+    let cloned_sender = sender.clone();
+    handle_dir(path, cloned_sender);
+    // });
+
+    let cloned_sender_again = sender.clone();
+    // let atomic_running_thread_cloned = atomic_running_thread.copy
     thread::spawn(move || {
-        handle_dir(path, sender);
+        let mut running_thread = 0;
+        // let mut queued_done_counter = 0;
+
+        let mut list_of_waiting_dir = Vec::new();
+
+        for received in dir_receiver {
+            println!("dir chan");
+            match received.t {
+                ResponseType::Dir => {
+                    if !received.dir_done {
+                        if running_thread >= saved_num_cpu * 3 {
+                            list_of_waiting_dir.push(received);
+                        } else {
+                            running_thread +=1;
+                            handle_dir(received.path, cloned_sender_again.clone());
+                        }
+                    } else {
+                        if running_thread == 0 {
+                            println!("DONE");
+                            return;
+                        }
+                        running_thread -=1;
+                        match list_of_waiting_dir.pop() {
+                            Some(dir) => {
+                                running_thread +=1;
+                                handle_dir(dir.path, cloned_sender_again.clone());
+                            },
+                            None => println!("the queue is empty"),
+                        };
+                    }
+                 }
+                 ResponseType::File => {}
+            }
+        }
     });
-    
+
     // Handle responses
     for received in receiver {
+        print!("get ");
         match received.t {
             ResponseType::Dir => {
+                println!("dir");
                 res.directories += 1;
+                dir_sender.send(received).unwrap();
             }
             ResponseType::File => {
+                println!("file");
                 handle_file(received.len, &mut res);
             }
         }
     }
-    
     println!("Files -> {}", nice_number(res.files));
     println!("Directories -> {}", nice_number(res.directories));
     println!("Less than 4K -> {}", nice_number(res.less_than_4_k));
@@ -118,12 +187,10 @@ fn handle_dir(path: String, ch: Sender<ChanResponse>) {
                     if let Ok(metadata) = entry.metadata() {
                         if metadata.is_dir() {
                             let ch = ch.clone();
-
-                            ch.send(build_dir_chan()).unwrap();
-
                             match entry.path().to_str() {
                                 Some(s) => {
-                                    handle_dir(String::from(s), ch);
+                                    ch.send(build_dir_chan(String::from(s))).unwrap();
+                                    // handle_dir(String::from(s), ch);
                                 }
                                 None => println!("no regular path {:?}", entry.path()),
                             }
@@ -135,6 +202,9 @@ fn handle_dir(path: String, ch: Sender<ChanResponse>) {
                     }
                 }
             }
+
+            // Notify the end of the thread
+            ch.send(build_dir_chan_done()).unwrap();
         });
     }
 }
