@@ -57,7 +57,7 @@ fn main() -> io::Result<()> {
     let bar = ProgressBar::new(saved_num_cpu as u64);
     bar.set_style(
         ProgressStyle::default_bar()
-            .template("[{per_sec}] {elapsed} {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}")
+            .template("[{per_sec}] {elapsed} {bar:.cyan/blue} {pos:>3}/{len:3} {msg}")
             .progress_chars("##-"),
     );
 
@@ -66,12 +66,15 @@ fn main() -> io::Result<()> {
 
     let cloned_sender_again = sender.clone();
     let mut running_thread = 0;
-    let mut list_of_waiting_dir = Vec::new();
+    let mut dir_queue = Vec::new();
     let starting_point = time::Instant::now();
 
     // Handle responses
     for received in receiver {
-        bar.set_message(&format!("file scanned {}", &res.files));
+        bar.set_message(&format!(
+            "files scanned {} and dirs in queue {}",
+            &res.files, &dir_queue.len()
+        ));
         // Check the type of the given element
         match received.t {
             // If Dir
@@ -80,7 +83,7 @@ fn main() -> io::Result<()> {
                 // Check if the number of running thread is not too height
                 if running_thread >= saved_num_cpu {
                     // If it's over four times the number of CPU than the folder is saved into a queue
-                    list_of_waiting_dir.push(received);
+                    dir_queue.push(received);
                 } else {
                     // No problem with too much concurrency, so let's run the scan right away
                     running_thread += 1;
@@ -93,9 +96,10 @@ fn main() -> io::Result<()> {
                 // The process is done
                 // Break the loop to display the results
                 if running_thread == 0 {
+                    bar.set_message(&format!("Total file scanned {}", &res.files));
                     break;
                 }
-                match list_of_waiting_dir.pop() {
+                match dir_queue.pop() {
                     Some(dir) => {
                         handle_dir(dir.path, cloned_sender_again.clone(), &bar);
                     }
