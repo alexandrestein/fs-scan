@@ -2,8 +2,10 @@ use std::env;
 use std::path::PathBuf;
 use std::sync::mpsc::{channel, Sender};
 use std::thread;
+use std::time;
 use std::{fs, io};
 
+use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
 use num_cpus;
 
 enum ResponseType {
@@ -50,43 +52,56 @@ fn main() -> io::Result<()> {
 
     // build channel
     let (sender, receiver) = channel();
-    let saved_num_cpu = num_cpus::get();
+    let saved_num_cpu = num_cpus::get() * 4;
 
-    handle_dir(path, sender.clone());
+    let bar = ProgressBar::new(saved_num_cpu as u64);
+    bar.set_style(
+        ProgressStyle::default_bar()
+            .template("[{per_sec}] {elapsed} {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}")
+            .progress_chars("##-"),
+    );
+
+    // Start scanning at the given path
+    handle_dir(path, sender.clone(), &bar);
 
     let cloned_sender_again = sender.clone();
-
     let mut running_thread = 0;
     let mut list_of_waiting_dir = Vec::new();
+    let starting_point = time::Instant::now();
 
     // Handle responses
     for received in receiver {
+        bar.set_message(&format!("file scanned {}", &res.files));
         // Check the type of the given element
         match received.t {
             // If Dir
             ResponseType::Dir => {
                 res.directories += 1;
                 // Check if the number of running thread is not too height
-                if running_thread >= saved_num_cpu * 4 {
+                if running_thread >= saved_num_cpu {
                     // If it's over four times the number of CPU than the folder is saved into a queue
                     list_of_waiting_dir.push(received);
                 } else {
                     // No problem with too much concurrency, so let's run the scan right away
                     running_thread += 1;
-                    handle_dir(received.path, cloned_sender_again.clone());
+                    bar.set_position(running_thread as u64);
+                    handle_dir(received.path, cloned_sender_again.clone(), &bar);
                 }
-            },
+            }
             // If this signal a directory scan terminated
             ResponseType::DoneDir => {
+                // The process is done
+                // Break the loop to display the results
                 if running_thread == 0 {
                     break;
                 }
                 match list_of_waiting_dir.pop() {
                     Some(dir) => {
-                        handle_dir(dir.path, cloned_sender_again.clone());
+                        handle_dir(dir.path, cloned_sender_again.clone(), &bar);
                     }
                     None => {
                         running_thread -= 1;
+                        bar.set_position(running_thread as u64);
                     }
                 };
             }
@@ -96,6 +111,9 @@ fn main() -> io::Result<()> {
             }
         }
     }
+    bar.finish();
+
+    println!("Scan took {}", HumanDuration(starting_point.elapsed()));
     println!("Files -> {}", nice_number(res.files));
     println!("Directories -> {}", nice_number(res.directories));
     println!("Less than 4K -> {}", nice_number(res.less_than_4_k));
@@ -150,10 +168,11 @@ fn nice_number(input: usize) -> String {
     }
 }
 
-fn handle_dir(path: PathBuf, ch: Sender<ChanResponse>) {
+fn handle_dir(path: PathBuf, ch: Sender<ChanResponse>, bar: &ProgressBar) {
     match fs::read_dir(&path) {
         Ok(entries) => {
             let ch = ch.clone();
+            let bar = bar.clone();
             thread::spawn(move || {
                 for entry in entries {
                     match entry {
@@ -167,15 +186,15 @@ fn handle_dir(path: PathBuf, ch: Sender<ChanResponse>) {
                                 }
                             }
                             Err(err) => {
-                                println!(
+                                bar.println(format!(
                                     "Couldn't get file metadata for {:?}: {}",
                                     entry.path(),
                                     err
-                                );
+                                ));
                             }
                         },
                         Err(err) => {
-                            println!("warning 1 {}", err);
+                            bar.println(format!("warning 1 {}", err));
                         }
                     }
                 }
@@ -184,7 +203,7 @@ fn handle_dir(path: PathBuf, ch: Sender<ChanResponse>) {
             });
         }
         Err(err) => {
-            println!("warning 0 {} {:?}", err, &path);
+            bar.println(format!("warning 0 {} {:?}", err, &path));
             // Notify the end of the thread
             ch.send(build_dir_chan_done()).unwrap();
         }
