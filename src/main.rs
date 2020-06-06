@@ -57,7 +57,7 @@ fn main() -> io::Result<()> {
     let bar = ProgressBar::new(saved_num_cpu as u64);
     bar.set_style(
         ProgressStyle::default_bar()
-            .template("[{per_sec}] {elapsed} {bar:.cyan/blue} {pos:>3}/{len:3} {msg}")
+            .template("{elapsed} {bar:.cyan/blue} {pos:>3}/{len:3} {msg}")
             .progress_chars("##-"),
     );
 
@@ -67,14 +67,27 @@ fn main() -> io::Result<()> {
     let cloned_sender_again = sender.clone();
     let mut running_thread = 0;
     let mut dir_queue = Vec::new();
+
     let starting_point = time::Instant::now();
+
+    let display_refresh_time = time::Duration::from_millis(250);
+    let mut last_message = time::Instant::now().checked_sub(display_refresh_time.clone()).expect("to remove some time");
 
     // Handle responses
     for received in receiver {
-        bar.set_message(&format!(
-            "files scanned {} and dirs in queue {}",
-            &res.files, &dir_queue.len()
-        ));
+        //  Limit the display refresh
+        let dur = time::Instant::now().duration_since(last_message);
+        if dur > display_refresh_time {
+            bar.set_message(&format!(
+                "files scanned {} and dirs in queue {}",
+                &res.files,
+                &dir_queue.len()
+            ));
+            bar.set_position(running_thread as u64);
+
+            last_message = time::Instant::now();
+        }
+
         // Check the type of the given element
         match received.t {
             // If Dir
@@ -87,7 +100,10 @@ fn main() -> io::Result<()> {
                 } else {
                     // No problem with too much concurrency, so let's run the scan right away
                     running_thread += 1;
-                    bar.set_position(running_thread as u64);
+
+                    // // Add latency to debug the display
+                    // thread::sleep(time::Duration::from_millis(5));
+
                     handle_dir(received.path, cloned_sender_again.clone(), &bar);
                 }
             }
@@ -101,11 +117,14 @@ fn main() -> io::Result<()> {
                 }
                 match dir_queue.pop() {
                     Some(dir) => {
+                        
+                        // // Add latency to debug the display
+                        // thread::sleep(time::Duration::from_millis(5));
+
                         handle_dir(dir.path, cloned_sender_again.clone(), &bar);
                     }
                     None => {
                         running_thread -= 1;
-                        bar.set_position(running_thread as u64);
                     }
                 };
             }
