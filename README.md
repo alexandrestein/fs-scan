@@ -1,7 +1,7 @@
 # fs-scan
 Scan directory and sub directories to display file layout from the size standpoint.
 
-[![asciicast](https://asciinema.org/a/6kVXn9wv2E97VLIB2g7Yt05Ii.svg)](https://asciinema.org/a/6kVXn9wv2E97VLIB2g7Yt05Ii?autoplay=1)
+![example animation: https://asciinema.org/a/4ZYguwCBbezdqPLGFs48Lv86n](example.gif)
 
 The package can optionally take a parameter which will be used as base directory.
 Otherwise the current directory is used.
