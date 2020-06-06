@@ -9,27 +9,25 @@ use num_cpus;
 enum ResponseType {
     File,
     Dir,
+    DoneDir,
 }
 struct ChanResponse {
     t: ResponseType,
     path: PathBuf,
     len: u64,
-    dir_done: bool,
 }
 fn build_dir_chan(path: PathBuf) -> ChanResponse {
     ChanResponse {
         t: ResponseType::Dir,
         path,
         len: 0,
-        dir_done: false,
     }
 }
 fn build_dir_chan_done() -> ChanResponse {
     ChanResponse {
-        t: ResponseType::Dir,
+        t: ResponseType::DoneDir,
         path: PathBuf::new(),
         len: 0,
-        dir_done: true,
     }
 }
 fn build_file_chan(size: u64) -> ChanResponse {
@@ -37,7 +35,6 @@ fn build_file_chan(size: u64) -> ChanResponse {
         t: ResponseType::File,
         path: PathBuf::new(),
         len: size,
-        dir_done: false,
     }
 }
 
@@ -64,30 +61,36 @@ fn main() -> io::Result<()> {
 
     // Handle responses
     for received in receiver {
+        // Check the type of the given element
         match received.t {
+            // If Dir
             ResponseType::Dir => {
                 res.directories += 1;
-                if !received.dir_done {
-                    if running_thread >= saved_num_cpu {
-                        list_of_waiting_dir.push(received);
-                    } else {
-                        running_thread += 1;
-                        handle_dir(received.path, cloned_sender_again.clone());
-                    }
+                // Check if the number of running thread is not too height
+                if running_thread >= saved_num_cpu * 4 {
+                    // If it's over four times the number of CPU than the folder is saved into a queue
+                    list_of_waiting_dir.push(received);
                 } else {
-                    if running_thread == 0 {
-                        break;
-                    }
-                    match list_of_waiting_dir.pop() {
-                        Some(dir) => {
-                            handle_dir(dir.path, cloned_sender_again.clone());
-                        }
-                        None => {
-                            running_thread -= 1;
-                        }
-                    };
+                    // No problem with too much concurrency, so let's run the scan right away
+                    running_thread += 1;
+                    handle_dir(received.path, cloned_sender_again.clone());
                 }
+            },
+            // If this signal a directory scan terminated
+            ResponseType::DoneDir => {
+                if running_thread == 0 {
+                    break;
+                }
+                match list_of_waiting_dir.pop() {
+                    Some(dir) => {
+                        handle_dir(dir.path, cloned_sender_again.clone());
+                    }
+                    None => {
+                        running_thread -= 1;
+                    }
+                };
             }
+            // If File
             ResponseType::File => {
                 handle_file(received.len, &mut res);
             }
