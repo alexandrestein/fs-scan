@@ -1,3 +1,5 @@
+mod objects;
+
 use std::env;
 use std::path::PathBuf;
 use std::sync::mpsc::{channel, Sender};
@@ -8,37 +10,7 @@ use std::{fs, io};
 use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
 use num_cpus;
 
-enum ResponseType {
-    File,
-    Dir,
-    DoneDir,
-}
-struct ChanResponse {
-    t: ResponseType,
-    path: PathBuf,
-    len: u64,
-}
-fn build_dir_chan(path: PathBuf) -> ChanResponse {
-    ChanResponse {
-        t: ResponseType::Dir,
-        path,
-        len: 0,
-    }
-}
-fn build_dir_chan_done() -> ChanResponse {
-    ChanResponse {
-        t: ResponseType::DoneDir,
-        path: PathBuf::new(),
-        len: 0,
-    }
-}
-fn build_file_chan(size: u64) -> ChanResponse {
-    ChanResponse {
-        t: ResponseType::File,
-        path: PathBuf::new(),
-        len: size,
-    }
-}
+
 
 fn main() -> io::Result<()> {
     let mut path = PathBuf::from(".");
@@ -48,7 +20,7 @@ fn main() -> io::Result<()> {
         path = PathBuf::from(&args[1]);
     };
 
-    let mut res = build_result();
+    let mut res = objects::build_result();
 
     // build channel
     let (sender, receiver) = channel();
@@ -91,7 +63,7 @@ fn main() -> io::Result<()> {
         // Check the type of the given element
         match received.t {
             // If Dir
-            ResponseType::Dir => {
+            objects::ResponseType::Dir => {
                 res.directories += 1;
                 // Check if the number of running thread is not too height
                 if running_thread >= saved_num_cpu {
@@ -108,7 +80,7 @@ fn main() -> io::Result<()> {
                 }
             }
             // If this signal a directory scan terminated
-            ResponseType::DoneDir => {
+            objects::ResponseType::DoneDir => {
                 // The process is done
                 // Break the loop to display the results
                 if running_thread == 0 {
@@ -129,7 +101,7 @@ fn main() -> io::Result<()> {
                 };
             }
             // If File
-            ResponseType::File => {
+            objects::ResponseType::File => {
                 handle_file(received.len, &mut res);
             }
         }
@@ -199,7 +171,7 @@ fn nice_number(input: usize) -> String {
     }
 }
 
-fn handle_dir(path: PathBuf, ch: Sender<ChanResponse>, bar: &ProgressBar) {
+fn handle_dir(path: PathBuf, ch: Sender<objects::ChanResponse>, bar: &ProgressBar) {
     match fs::read_dir(&path) {
         Ok(entries) => {
             let ch = ch.clone();
@@ -211,9 +183,9 @@ fn handle_dir(path: PathBuf, ch: Sender<ChanResponse>, bar: &ProgressBar) {
                             Ok(metadata) => {
                                 if metadata.is_dir() {
                                     let ch = ch.clone();
-                                    ch.send(build_dir_chan(entry.path())).unwrap();
+                                    ch.send(objects::build_dir_chan(entry.path())).unwrap();
                                 } else if metadata.is_file() {
-                                    ch.send(build_file_chan(metadata.len())).unwrap();
+                                    ch.send(objects::build_file_chan(metadata.len())).unwrap();
                                 }
                             }
                             Err(err) => {
@@ -230,18 +202,18 @@ fn handle_dir(path: PathBuf, ch: Sender<ChanResponse>, bar: &ProgressBar) {
                     }
                 }
                 // Notify the end of the thread
-                ch.send(build_dir_chan_done()).unwrap();
+                ch.send(objects::build_dir_chan_done()).unwrap();
             });
         }
         Err(err) => {
             bar.println(format!("warning 0 {} {:?}", err, &path));
             // Notify the end of the thread
-            ch.send(build_dir_chan_done()).unwrap();
+            ch.send(objects::build_dir_chan_done()).unwrap();
         }
     }
 }
 
-fn handle_file(len: u64, res: &mut Result) {
+fn handle_file(len: u64, res: &mut objects::Result) {
     if len < 4_000 {
         res.less_than_4_k = res.less_than_4_k + 1;
     } else if len < 8_000 {
@@ -270,42 +242,4 @@ fn handle_file(len: u64, res: &mut Result) {
         res.more_than_1_g = res.more_than_1_g + 1;
     }
     res.files = res.files + 1;
-}
-
-struct Result {
-    files: usize,
-    directories: usize,
-    less_than_4_k: usize,
-    between_4_k_8_k: usize,
-    between_8_k_16_k: usize,
-    between_16_k_32_k: usize,
-    between_32_k_64_k: usize,
-    between_64_k_128_k: usize,
-    between_128_k_256_k: usize,
-    between_256_k_512_k: usize,
-    between_512_k_1_m: usize,
-    between_1_m_10_m: usize,
-    between_10_m_100_m: usize,
-    between_100_m_1_g: usize,
-    more_than_1_g: usize,
-}
-fn build_result() -> Result {
-    Result {
-        files: 0,
-        directories: 0,
-
-        less_than_4_k: 0,
-        between_4_k_8_k: 0,
-        between_8_k_16_k: 0,
-        between_16_k_32_k: 0,
-        between_32_k_64_k: 0,
-        between_64_k_128_k: 0,
-        between_128_k_256_k: 0,
-        between_256_k_512_k: 0,
-        between_512_k_1_m: 0,
-        between_1_m_10_m: 0,
-        between_10_m_100_m: 0,
-        between_100_m_1_g: 0,
-        more_than_1_g: 0,
-    }
 }
