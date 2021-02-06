@@ -141,42 +141,50 @@ fn main() -> io::Result<()> {
     println!("Directories -> {}", nice_number(res.directories));
     println!("Less than 4K -> {}", nice_number(res.less_than_4_k));
     println!(
-        "Between 4K and 16K -> {}",
-        nice_number(res.between_4_k_16_k)
+        "Between 4KB and 8KB -> {}",
+        nice_number(res.between_4_k_8_k)
     );
     println!(
-        "Between 16K and 64K -> {}",
-        nice_number(res.between_16_k_64_k)
+        "Between 8KB and 16KB -> {}",
+        nice_number(res.between_8_k_16_k)
     );
     println!(
-        "Between 64K and 128K -> {}",
+        "Between 16KB and 32KB -> {}",
+        nice_number(res.between_16_k_32_k)
+    );
+    println!(
+        "Between 32KB and 64KB -> {}",
+        nice_number(res.between_32_k_64_k)
+    );
+    println!(
+        "Between 64KB and 128KB -> {}",
         nice_number(res.between_64_k_128_k)
     );
     println!(
-        "Between 128K and 256K -> {}",
+        "Between 128KB and 256KB -> {}",
         nice_number(res.between_128_k_256_k)
     );
     println!(
-        "Between 256K and 512K -> {}",
+        "Between 256KB and 512KB -> {}",
         nice_number(res.between_256_k_512_k)
     );
     println!(
-        "Between 512K and 1M -> {}",
+        "Between 512KB and 1MB -> {}",
         nice_number(res.between_512_k_1_m)
     );
     println!(
-        "Between 1M and 10M -> {}",
+        "Between 1MB and 10MB -> {}",
         nice_number(res.between_1_m_10_m)
     );
     println!(
-        "Between 10M and 100M -> {}",
+        "Between 10MB and 100MB -> {}",
         nice_number(res.between_10_m_100_m)
     );
     println!(
-        "Between 100M and 1G -> {}",
+        "Between 100MB and 1GB -> {}",
         nice_number(res.between_100_m_1_g)
     );
-    println!("More than 1G -> {}", nice_number(res.more_than_1_g));
+    println!("More than 1GB -> {}", nice_number(res.more_than_1_g));
 
     Ok(())
 }
@@ -236,10 +244,14 @@ fn handle_dir(path: PathBuf, ch: Sender<ChanResponse>, bar: &ProgressBar) {
 fn handle_file(len: u64, res: &mut Result) {
     if len < 4_000 {
         res.less_than_4_k = res.less_than_4_k + 1;
+    } else if len < 8_000 {
+        res.between_4_k_8_k = res.between_4_k_8_k + 1;
     } else if len < 16_000 {
-        res.between_4_k_16_k = res.between_4_k_16_k + 1;
+        res.between_8_k_16_k = res.between_8_k_16_k + 1;
+    } else if len < 32_000 {
+        res.between_16_k_32_k = res.between_16_k_32_k + 1;
     } else if len < 64_000 {
-        res.between_16_k_64_k = res.between_16_k_64_k + 1;
+        res.between_32_k_64_k = res.between_32_k_64_k + 1;
     } else if len < 128_000 {
         res.between_64_k_128_k = res.between_64_k_128_k + 1;
     } else if len < 256_000 {
@@ -264,8 +276,10 @@ struct Result {
     files: usize,
     directories: usize,
     less_than_4_k: usize,
-    between_4_k_16_k: usize,
-    between_16_k_64_k: usize,
+    between_4_k_8_k: usize,
+    between_8_k_16_k: usize,
+    between_16_k_32_k: usize,
+    between_32_k_64_k: usize,
     between_64_k_128_k: usize,
     between_128_k_256_k: usize,
     between_256_k_512_k: usize,
@@ -281,8 +295,10 @@ fn build_result() -> Result {
         directories: 0,
 
         less_than_4_k: 0,
-        between_4_k_16_k: 0,
-        between_16_k_64_k: 0,
+        between_4_k_8_k: 0,
+        between_8_k_16_k: 0,
+        between_16_k_32_k: 0,
+        between_32_k_64_k: 0,
         between_64_k_128_k: 0,
         between_128_k_256_k: 0,
         between_256_k_512_k: 0,
