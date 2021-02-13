@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 pub struct Result {
+    pub path: String,
     pub files: usize,
     pub directories: usize,
     pub less_than_4_k: usize,
@@ -17,8 +18,10 @@ pub struct Result {
     pub between_100_m_1_g: usize,
     pub more_than_1_g: usize,
 }
-pub fn build_result() -> Result {
+pub fn build_result(path: &str) -> Result {
     Result {
+        path: String::from(path),
+
         files: 0,
         directories: 0,
 
@@ -38,6 +41,29 @@ pub fn build_result() -> Result {
     }
 }
 
+impl Result {
+    pub fn result_to_string(&self) -> String {
+        format!(
+            "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
+            &self.path,
+            &self.files,
+            &self.directories,
+            &self.less_than_4_k,
+            &self.between_4_k_8_k,
+            &self.between_8_k_16_k,
+            &self.between_16_k_32_k,
+            &self.between_32_k_64_k,
+            &self.between_64_k_128_k,
+            &self.between_128_k_256_k,
+            &self.between_256_k_512_k,
+            &self.between_512_k_1_m,
+            &self.between_1_m_10_m,
+            &self.between_10_m_100_m,
+            &self.between_100_m_1_g,
+            &self.more_than_1_g,
+        )
+    }
+}
 
 pub enum ResponseType {
     File,

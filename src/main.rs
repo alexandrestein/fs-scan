@@ -1,18 +1,17 @@
+mod csv;
 mod objects;
 
 use std::env;
+use std::fs;
 use std::path::PathBuf;
 use std::sync::mpsc::{channel, Sender};
 use std::thread;
 use std::time;
-use std::{fs, io};
 
 use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
 use num_cpus;
 
-
-
-fn main() -> io::Result<()> {
+fn main() {
     let mut path = PathBuf::from(".");
     let args: Vec<_> = env::args().collect();
     if args.len() > 1 {
@@ -20,7 +19,11 @@ fn main() -> io::Result<()> {
         path = PathBuf::from(&args[1]);
     };
 
-    let mut res = objects::build_result();
+    let mut res;
+    match &path.to_str() {
+        Some(path_as_string) => res = objects::build_result(path_as_string),
+        None => res = objects::build_result(""),
+    }
 
     // build channel
     let (sender, receiver) = channel();
@@ -43,7 +46,9 @@ fn main() -> io::Result<()> {
     let starting_point = time::Instant::now();
 
     let display_refresh_time = time::Duration::from_millis(250);
-    let mut last_message = time::Instant::now().checked_sub(display_refresh_time.clone()).expect("to remove some time");
+    let mut last_message = time::Instant::now()
+        .checked_sub(display_refresh_time.clone())
+        .expect("to remove some time");
 
     // Handle responses
     for received in receiver {
@@ -89,7 +94,6 @@ fn main() -> io::Result<()> {
                 }
                 match dir_queue.pop() {
                     Some(dir) => {
-                        
                         // // Add latency to debug the display
                         // thread::sleep(time::Duration::from_millis(5));
 
@@ -107,6 +111,8 @@ fn main() -> io::Result<()> {
         }
     }
     bar.finish();
+
+    csv::save(&res);
 
     println!("Scan took {}", HumanDuration(starting_point.elapsed()));
     println!("Files -> {}", nice_number(res.files));
@@ -157,8 +163,6 @@ fn main() -> io::Result<()> {
         nice_number(res.between_100_m_1_g)
     );
     println!("More than 1GB -> {}", nice_number(res.more_than_1_g));
-
-    Ok(())
 }
 
 fn nice_number(input: usize) -> String {
