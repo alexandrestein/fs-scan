@@ -4,6 +4,7 @@ pub struct Result {
     pub path: String,
     pub files: usize,
     pub directories: usize,
+    pub empty_file: usize,
     pub less_than_4_k: usize,
     pub between_4_k_8_k: usize,
     pub between_8_k_16_k: usize,
@@ -25,6 +26,7 @@ pub fn build_result(path: &str) -> Result {
         files: 0,
         directories: 0,
 
+        empty_file: 0,
         less_than_4_k: 0,
         between_4_k_8_k: 0,
         between_8_k_16_k: 0,
@@ -44,10 +46,11 @@ pub fn build_result(path: &str) -> Result {
 impl Result {
     pub fn result_to_string(&self) -> String {
         format!(
-            "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
+            "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
             &self.path,
             &self.files,
             &self.directories,
+            &self.empty_file,
             &self.less_than_4_k,
             &self.between_4_k_8_k,
             &self.between_8_k_16_k,

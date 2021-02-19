@@ -117,6 +117,7 @@ fn main() {
     println!("Scan took {}", HumanDuration(starting_point.elapsed()));
     println!("Files -> {}", nice_number(res.files));
     println!("Directories -> {}", nice_number(res.directories));
+    println!("Empty files -> {}", nice_number(res.empty_file));
     println!("Less than 4K -> {}", nice_number(res.less_than_4_k));
     println!(
         "Between 4KB and 8KB -> {}",
@@ -218,7 +219,9 @@ fn handle_dir(path: PathBuf, ch: Sender<objects::ChanResponse>, bar: &ProgressBa
 }
 
 fn handle_file(len: u64, res: &mut objects::Result) {
-    if len < 4_000 {
+    if len == 0 {
+        res.empty_file = res.empty_file + 1;
+    } else if len < 4_000 {
         res.less_than_4_k = res.less_than_4_k + 1;
     } else if len < 8_000 {
         res.between_4_k_8_k = res.between_4_k_8_k + 1;
