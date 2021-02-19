@@ -6,7 +6,7 @@ use std::io::Write;
 use super::objects;
 
 static OUTPUT_FILE: &'static str = "fs-scan_output.csv";
-static FILE_FIRST_LINE: &'static str = "Path,Files,Directories,0,less_than_4K,4K_8K,8K_16K,16K_32K,32K_64K,64K_128K,128K_256K,256K_512K,512K_1M,1M_10M,10M_100M,100M_1G,1G";
+static FILE_FIRST_LINE: &'static str = "Path,Duration_ms,Files,Directories,Empty_files,Less_than_4K,4K_8K,8K_16K,16K_32K,32K_64K,64K_128K,128K_256K,256K_512K,512K_1M,1M_10M,10M_100M,100M_1G,1G";
 
 pub fn save(res: &objects::Result) {
     match check_file() {
@@ -23,7 +23,7 @@ pub fn save(res: &objects::Result) {
         .open(&OUTPUT_FILE)
         .unwrap();
 
-    if let Err(_) = writeln!(file, "{}", res.result_to_string()) {
+    if let Err(_) = writeln!(file, "{}", res.csv_line()) {
         return;
     }
 }

@@ -112,9 +112,12 @@ fn main() {
     }
     bar.finish();
 
+    // Save the time spend 
+    res.duration = starting_point.elapsed();
+
     csv::save(&res);
 
-    println!("Scan took {}", HumanDuration(starting_point.elapsed()));
+    println!("Scan took {}", HumanDuration(res.duration));
     println!("Files -> {}", nice_number(res.files));
     println!("Directories -> {}", nice_number(res.directories));
     println!("Empty files -> {}", nice_number(res.empty_file));

@@ -1,7 +1,9 @@
 use std::path::PathBuf;
+use std::time::Duration;
 
 pub struct Result {
     pub path: String,
+    pub duration: Duration,
     pub files: usize,
     pub directories: usize,
     pub empty_file: usize,
@@ -22,6 +24,8 @@ pub struct Result {
 pub fn build_result(path: &str) -> Result {
     Result {
         path: String::from(path),
+
+        duration: Duration::new(0, 0),
 
         files: 0,
         directories: 0,
@@ -44,10 +48,11 @@ pub fn build_result(path: &str) -> Result {
 }
 
 impl Result {
-    pub fn result_to_string(&self) -> String {
+    pub fn csv_line(&self) -> String {
         format!(
-            "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
+            "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
             &self.path,
+            &self.duration.as_millis(),
             &self.files,
             &self.directories,
             &self.empty_file,
