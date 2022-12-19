@@ -1,3 +1,8 @@
+# This project has moved to [DDNeu](https://github.com/DDNeu/fs-scan) and this repository is not maintained anymore.
+
+
+
+
 # fs-scan
 Scan directory and sub directories to display file layout from the size standpoint.
 
